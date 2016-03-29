@@ -1,6 +1,0 @@
-com/adswizz/profiler/AlpinistAgent.class
-com/adswizz/profiler/Measured.class
-com/adswizz/profiler/MetricReporter.class
-com/adswizz/profiler/transformer/SimpleTransformer.class
-com/adswizz/profiler/RunExample.class
-com/adswizz/profiler/transformer/TimedClassTransformer.class
