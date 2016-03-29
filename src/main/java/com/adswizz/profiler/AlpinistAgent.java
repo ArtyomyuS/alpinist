@@ -1,11 +1,12 @@
 package com.adswizz.profiler;
 
-import com.adswizz.profiler.transformer.TimedClassTransformer;
+import com.adswizz.profiler.transformer.SimpleTransformer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 
 /**
@@ -17,14 +18,27 @@ public class AlpinistAgent {
 
     public static final Logger logger = LoggerFactory.getLogger(AlpinistAgent.class);
 
-    public static void premain(String agentArguments, Instrumentation instrumentation) {
-        RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
+    /**
+     * Main agent signature.
+     *
+     * @param arguments       the arguments.
+     * @param instrumentation the instrumentation.
+     */
+    public static void agentmain(String arguments, Instrumentation instrumentation) {
+        final RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
+        final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
+
+        logger.info("===========================================================================");
+        logger.info("OS: {}", osMxBean.getName());
         logger.info("Runtime: {}: {}", runtimeMxBean.getName(), runtimeMxBean.getInputArguments());
-        logger.info("Starting agent with arguments " + agentArguments);
+        logger.info("Starting with arguments " + arguments);
+        logger.info("===========================================================================");
 
-        MetricReporter.startJmxReporter();
+        // add metric reporter -- Socket reporter
 
-        // define the class transformer to use
-        instrumentation.addTransformer(new TimedClassTransformer());
+        // add class transformer to report metrics.
+
+        instrumentation.addTransformer(new SimpleTransformer());
     }
+
 }
