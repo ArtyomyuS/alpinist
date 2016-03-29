@@ -44,10 +44,19 @@ public class SimpleTransformer implements ClassFileTransformer {
 
             for (CtMethod method : ctClass.getDeclaredMethods()) {
                 logger.debug(method.getLongName());
+
+                if (!Modifier.isNative(method.getModifiers())) {
+                    method.addLocalVariable("__metricStartTime", CtClass.longType);
+                    method.insertBefore("__metricStartTime = System.currentTimeMillis();");
+                    String metricName = ctClass.getName() + "." + method.getName();
+                    method.insertAfter("System.out.println(\"" + metricName + ": \" + (System.currentTimeMillis() - __metricStartTime));");
+                }
+
+
             }
 
             return ctClass.toBytecode();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.error(e.getMessage());
             return null;
         }

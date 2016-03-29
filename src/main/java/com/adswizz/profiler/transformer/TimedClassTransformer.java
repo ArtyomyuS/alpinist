@@ -1,10 +1,7 @@
 package com.adswizz.profiler.transformer;
 
 import com.adswizz.profiler.Measured;
-import javassist.ByteArrayClassPath;
-import javassist.ClassPool;
-import javassist.CtClass;
-import javassist.CtMethod;
+import javassist.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,12 +28,14 @@ public class TimedClassTransformer implements ClassFileTransformer {
 
     public byte[] transform(ClassLoader loader, String fullyQualifiedClassName, Class<?> classBeingRedefined,
                             ProtectionDomain protectionDomain, byte[] classBytes) throws IllegalClassFormatException {
-        String className = fullyQualifiedClassName.replace("/", ".");
-
-        classPool.appendClassPath(new ByteArrayClassPath(className, classBytes));
+        final String className = fullyQualifiedClassName.replace("/", ".");
 
         try {
+            classPool.appendClassPath(new ByteArrayClassPath(className, classBytes));
             CtClass ctClass = classPool.get(className);
+
+            if (!ctClass.getPackageName().contains("com.adswizz")) return null;
+
             if (ctClass.isFrozen()) {
                 logger.debug("Skip class {}: is frozen", className);
                 return null;
@@ -51,26 +50,28 @@ public class TimedClassTransformer implements ClassFileTransformer {
             boolean isClassModified = false;
             for (CtMethod method : ctClass.getDeclaredMethods()) {
                 // if method is annotated, add the code to measure the time
-                if (method.hasAnnotation(Measured.class)) {
-                    if (method.getMethodInfo().getCodeAttribute() == null) {
-                        logger.debug("Skip method " + method.getLongName());
-                        continue;
-                    }
-                    logger.debug("Instrumenting method " + method.getLongName());
-                    method.addLocalVariable("__metricStartTime", CtClass.longType);
-                    method.insertBefore("__metricStartTime = System.currentTimeMillis();");
-                    String metricName = ctClass.getName() + "." + method.getName();
-                    method.insertAfter("com.adswizz.profiler.MetricReporter.reportTime(\"" + metricName + "\", System.currentTimeMillis() - __metricStartTime);");
-                    isClassModified = true;
+                if (method.getMethodInfo().getCodeAttribute() == null || method.getName().equals("main")) {
+                    logger.warn("Skip method " + method.getLongName());
+                    continue;
                 }
+
+                if (Modifier.isNative(method.getModifiers()) || Modifier.isAbstract(method.getModifiers())) continue;
+
+                logger.debug("Instrumenting method " + method.getLongName());
+                method.addLocalVariable("__metricStartTime", CtClass.longType);
+                method.insertBefore("__metricStartTime = System.currentTimeMillis();");
+                String metricName = ctClass.getName() + "." + method.getName();
+                method.insertAfter("com.adswizz.profiler.MetricReporter.reportTime(\"" + metricName + "\", System.currentTimeMillis() - __metricStartTime);");
+                isClassModified = true;
             }
             if (!isClassModified) {
                 return null;
             }
             return ctClass.toBytecode();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.debug("Skip class {}: ", className, e.getMessage());
-            return null;
+            throw new RuntimeException(e);
+//            return null;
         }
     }
 }

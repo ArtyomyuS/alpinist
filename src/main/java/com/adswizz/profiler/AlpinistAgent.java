@@ -1,10 +1,12 @@
 package com.adswizz.profiler;
 
 import com.adswizz.profiler.transformer.SimpleTransformer;
+import com.adswizz.profiler.transformer.TimedClassTransformer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.instrument.Instrumentation;
+import java.lang.management.ClassLoadingMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
@@ -17,6 +19,10 @@ import java.lang.management.RuntimeMXBean;
 public class AlpinistAgent {
 
     public static final Logger logger = LoggerFactory.getLogger(AlpinistAgent.class);
+
+    public static void premain(String arguments, Instrumentation instrumentation) {
+        agentmain(arguments, instrumentation);
+    }
 
     /**
      * Main agent signature.
@@ -34,11 +40,14 @@ public class AlpinistAgent {
         logger.info("Starting with arguments " + arguments);
         logger.info("===========================================================================");
 
+
+        MetricReporter.startJmxReporter();
+
         // add metric reporter -- Socket reporter
 
         // add class transformer to report metrics.
 
-        instrumentation.addTransformer(new SimpleTransformer());
+        instrumentation.addTransformer(new TimedClassTransformer());
     }
 
 }
