@@ -48,7 +48,7 @@
 
 ## Backlog
 ---
-    1. Resource checker
+    1. Resource  checker
     2. Integrate with external datasources
     3. Provide native UI(html, unix)
 

@@ -1,15 +1,12 @@
 package com.adswizz.profiler;
 
-import java.util.Random;
 
 public class RunExample {
-    private Random random = new Random();
 
     public RunExample() {
 
     }
 
-    @Measured
     public void doSleep() {
         try {
             Thread.sleep(1000);
@@ -17,7 +14,6 @@ public class RunExample {
         }
     }
 
-    @Measured
     private void doTask() {
         try {
             Thread.sleep(1000);
@@ -25,7 +21,6 @@ public class RunExample {
         }
     }
 
-    @Measured
     public void doWork() {
         for (int i = 0; i < 5; i++) {
             doTask();

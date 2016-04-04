@@ -1,6 +1,6 @@
 package com.adswizz.profiler.transformer;
 
-import com.adswizz.profiler.Measured;
+import com.adswizz.profiler.JVMUtils;
 import javassist.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.security.ProtectionDomain;
+import java.util.Arrays;
+import java.util.function.Predicate;
 
 public class TimedClassTransformer implements ClassFileTransformer {
 
@@ -28,50 +30,57 @@ public class TimedClassTransformer implements ClassFileTransformer {
 
     public byte[] transform(ClassLoader loader, String fullyQualifiedClassName, Class<?> classBeingRedefined,
                             ProtectionDomain protectionDomain, byte[] classBytes) throws IllegalClassFormatException {
+
         final String className = fullyQualifiedClassName.replace("/", ".");
 
         try {
             classPool.appendClassPath(new ByteArrayClassPath(className, classBytes));
             CtClass ctClass = classPool.get(className);
 
-            if (!ctClass.getPackageName().contains("com.adswizz")) return null;
+            if (isClassModifiable().test(ctClass)) return null;
 
-            if (ctClass.isFrozen()) {
-                logger.debug("Skip class {}: is frozen", className);
-                return null;
-            }
+            Arrays.asList(ctClass.getDeclaredMethods()).stream()
+                    .filter(isMethodModifiable())
+                    .forEach(ctMethod -> {
+                        logger.debug("Instrumenting method " + ctMethod.getLongName());
+                        try {
+                            ctMethod.addLocalVariable("__metricStartTime", CtClass.longType);
+                            ctMethod.insertBefore("__metricStartTime = System.currentTimeMillis();");
+                            String metricName = ctClass.getName() + "." + ctMethod.getName();
+                            ctMethod.insertAfter("com.adswizz.profiler.MetricReporter.reportTime(\"" + metricName + "\", System.currentTimeMillis() - __metricStartTime);");
+                        } catch (CannotCompileException e) {
+                            logger.debug("Skip class {}: ", className, e.getMessage());
+                            throw new RuntimeException(e);
+                        }
+                    });
 
-            if (ctClass.isPrimitive() || ctClass.isArray() || ctClass.isAnnotation()
-                    || ctClass.isEnum() || ctClass.isInterface()) {
-                logger.debug("Skip class {}: not a class", className);
-                return null;
-            }
-
-            boolean isClassModified = false;
-            for (CtMethod method : ctClass.getDeclaredMethods()) {
-                // if method is annotated, add the code to measure the time
-                if (method.getMethodInfo().getCodeAttribute() == null || method.getName().equals("main")) {
-                    logger.warn("Skip method " + method.getLongName());
-                    continue;
-                }
-
-                if (Modifier.isNative(method.getModifiers()) || Modifier.isAbstract(method.getModifiers())) continue;
-
-                logger.debug("Instrumenting method " + method.getLongName());
-                method.addLocalVariable("__metricStartTime", CtClass.longType);
-                method.insertBefore("__metricStartTime = System.currentTimeMillis();");
-                String metricName = ctClass.getName() + "." + method.getName();
-                method.insertAfter("com.adswizz.profiler.MetricReporter.reportTime(\"" + metricName + "\", System.currentTimeMillis() - __metricStartTime);");
-                isClassModified = true;
-            }
-            if (!isClassModified) {
-                return null;
-            }
             return ctClass.toBytecode();
         } catch (Throwable e) {
             logger.debug("Skip class {}: ", className, e.getMessage());
-            throw new RuntimeException(e);
-//            return null;
+            return null;
         }
+    }
+
+    /**
+     * @return true if the class is modifiable.
+     */
+    private Predicate<CtClass> isClassModifiable() {
+        return ctClass -> !ctClass.getPackageName().contains(JVMUtils.getPackageName()) &&
+                !ctClass.isFrozen() &&
+                !ctClass.isPrimitive() &&
+                !ctClass.isArray() &&
+                !ctClass.isAnnotation() &&
+                !ctClass.isEnum() &&
+                !ctClass.isInterface();
+    }
+
+    /**
+     * @return true if the method is modifiable.
+     */
+    private Predicate<CtMethod> isMethodModifiable() {
+        return ctMethod -> ctMethod.getMethodInfo().getCodeAttribute() != null &&
+                !ctMethod.getLongName().contains(JVMUtils.getClassName() + ".main") &&
+                !Modifier.isNative(ctMethod.getModifiers()) &&
+                !Modifier.isAbstract(ctMethod.getModifiers());
     }
 }
