@@ -55,13 +55,13 @@
 
 ## Resources
 ---
-    1. [javassist](https://github.com/jboss-javassist/javassist)
-    2. [codehale metrics](https://github.com/codahale/metrics)
+1. [Javassist](https://github.com/jboss-javassist/javassist)
+2. [Codehale metrics](https://github.com/codahale/metrics)
+3. [RxJava](https://github.com/ReactiveX/RxJava)
 
     
 ## Usage
 ---
-
     `
     java -javaagent:<alpinist.jar>=<agent_arguments> <mainClass>
     java --agentpath:<alpinist.so>
